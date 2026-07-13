@@ -179,3 +179,75 @@ All settings in `.env`:
 | `PDF_TEXT_LIMIT` | `8000` | Max characters read from PDF |
 | `LOG_DIR` | `logs` | Log file directory |
 | `ENV` | `production` | Set to `development` for hot reload |
+
+---
+
+## Architecture Deep-Dive
+
+### How agents share context
+
+All four agents communicate through a shared `BrandState` TypedDict managed by LangGraph. Each node reads only what it needs and writes back only what it produces — LangGraph merges the partial updates into the shared state between steps.
+
+```
+BrandState
+  pdf_path          → Agent 1 reads
+  brand_rules       ← Agent 1 writes  →  Agent 3 reads
+  content_analysis  ← Agent 2 writes  →  Agent 3 reads
+  compliance_report ← Agent 3 writes  →  Agent 4 reads
+  ml_scores         ← Agent 3 writes
+  corrections       ← Agent 4 writes
+  error             ← any agent writes (short-circuits the rest)
+```
+
+Agent 3 also queries Qdrant for semantically relevant rules instead of passing the full list through state. This keeps the LLM prompt focused on the rules most likely to be violated by the specific ad text.
+
+---
+
+### Orchestration problems encountered
+
+**Duplicate execution.** The first version had the dashboard calling agents directly and also calling `graph.invoke()`, so every analysis ran twice. Fixed by routing everything through `graph.invoke()` and caching results in `st.session_state`.
+
+**Qdrant API breaking change.** Qdrant v1.18 removed the `.search()` method. Replaced with `.query_points()` and changed result access from `results` to `results.points`. No migration guide existed — found it through the error traceback.
+
+**Vector dimension mismatch.** Switching from OpenAI embeddings (1536 dims) to Ollama nomic-embed-text (768 dims) caused Qdrant to reject new vectors against the existing collection. Solution: `_ensure_collection()` checks the stored dimension on every startup and deletes and recreates the collection if there is a mismatch.
+
+**LLM JSON inconsistency.** llama3.2 without `format="json"` would occasionally return markdown-fenced JSON, arrays wrapped in objects, or malformed output. Fixed with a `parse_json_response()` utility that strips fences, tries `json.loads`, and falls back to `json-repair` as a last resort. An `extract_list()` helper normalises both `{"rules": [...]}` and `[...]` response shapes.
+
+---
+
+### Memory management
+
+**Short-term — session memory.**
+Each `graph.invoke()` call receives a UUID `session_id`. Brand rules extracted from the PDF are stored in Qdrant tagged with that session ID. Rule lookups during compliance checking are scoped to the same session ID, so two concurrent analyses never contaminate each other. When Qdrant runs in-memory mode (no Docker), this data is discarded on process exit.
+
+**Long-term — feedback memory.**
+User ratings ("Correct" / "Wrong") are written to a SQLite database with the source PDF filename as a tenant tag. This persists across restarts. The logistic regression trainer reads from this store, optionally filtered to a single PDF, and writes the trained model to `custom_classifier.pkl`. The custom model is loaded on the next run and runs in parallel with BART-MNLI.
+
+What is intentionally absent: there is no cross-session conversational memory. Each analysis starts from scratch. If session history were needed, a Redis-backed message store per session would be the straightforward addition.
+
+---
+
+### Zero-shot NLI pre-filter
+
+Agent 3 uses `facebook/bart-large-mnli` to score each brand rule against the ad text before sending anything to the LLM. The hypothesis template is:
+
+```
+"This advertisement violates the brand guideline: {rule}"
+```
+
+BART-MNLI was fine-tuned on the Multi-Genre NLI dataset (400K+ premise-hypothesis pairs labelled as entailment / contradiction / neutral). Using `multi_label=True` causes each rule to be scored independently rather than in competition. Rules that score below the configured threshold (default 0.50) are dropped before the LLM call.
+
+In practice this reduces the number of rules sent to the LLM by 80-90% on a typical brand guidelines document, with no cloud API cost since the model runs locally on CPU or Apple MPS.
+
+---
+
+### Authorization design
+
+The current implementation is single-tenant and has no authentication layer. In a production deployment serving multiple brands the required additions would be:
+
+- JWT middleware on all FastAPI endpoints, extracting `user_id` and `tenant_id` from the token
+- Qdrant collection names scoped per tenant: `brand_rules_{tenant_id}`
+- Feedback records tagged with `tenant_id` in addition to `source_pdf`
+- The retrain endpoint restricted to users with an admin role for the given tenant
+
+The existing `source_pdf` tagging in the feedback store and the session-scoped Qdrant queries are already structured in a way that maps cleanly onto tenant isolation — the primary change would be replacing the PDF filename with an authenticated tenant identifier.
