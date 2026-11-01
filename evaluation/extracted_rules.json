@@ -1,0 +1,162 @@
+{
+  "model": "llama3.2:3b",
+  "temperature": 0,
+  "elapsed_seconds": 20.7,
+  "rules": [
+    {
+      "category": "logo",
+      "rule": "Logo must always appear on white or light background",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "logo",
+      "rule": "Maintain clear space of at least 20px around the logo",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "logo",
+      "rule": "Minimum logo size: 50px width",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "logo",
+      "rule": "Do not stretch, rotate, or recolor the logo",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "color",
+      "rule": "Primary Blue: #0055FF (use for headlines, CTAs)",
+      "value": "#0055FF",
+      "check": null
+    },
+    {
+      "category": "color",
+      "rule": "Secondary Black: #000000 (body text)",
+      "value": "#000000",
+      "check": null
+    },
+    {
+      "category": "color",
+      "rule": "Background White: #FFFFFF",
+      "value": "#FFFFFF",
+      "check": null
+    },
+    {
+      "category": "color",
+      "rule": "Accent Gray: #F5F5F5",
+      "value": "#F5F5F5",
+      "check": null
+    },
+    {
+      "category": "color",
+      "rule": "Do NOT use red color in any marketing material",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "color",
+      "rule": "Do NOT use gradients on logo",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "typography",
+      "rule": "Headline font: Helvetica Neue Bold",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "typography",
+      "rule": "Body font: Helvetica Neue Regular",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "typography",
+      "rule": "Minimum body font size: 14px",
+      "value": "14px",
+      "check": null
+    },
+    {
+      "category": "typography",
+      "rule": "Minimum headline size: 24px",
+      "value": "24px",
+      "check": null
+    },
+    {
+      "category": "language",
+      "rule": "Always use formal, professional tone",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "language",
+      "rule": "Forbidden words: cheap, free, guaranteed, limited time, urgent, buy now",
+      "value": null,
+      "check": {
+        "type": "forbidden_words",
+        "words": [
+          "cheap",
+          "free",
+          "guaranteed",
+          "limited time",
+          "urgent",
+          "buy now"
+        ],
+        "text": null,
+        "position": "anywhere"
+      }
+    },
+    {
+      "category": "language",
+      "rule": "Do not use all-caps for body text",
+      "value": null,
+      "check": {
+        "type": "no_all_caps",
+        "words": [],
+        "text": null,
+        "position": "anywhere"
+      }
+    },
+    {
+      "category": "language",
+      "rule": "Always include the tagline: \"Innovation. Trust. Excellence.\"",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "slogan",
+      "rule": "Required tagline on all ads: \"Innovation. Trust. Excellence.\"",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "slogan",
+      "rule": "Tagline must appear at the bottom of every advertisement",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "slogan",
+      "rule": "Do not modify or abbreviate the tagline",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "legal",
+      "rule": "Include trademark symbol (·) after ACME CORP in all materials",
+      "value": null,
+      "check": null
+    },
+    {
+      "category": "legal",
+      "rule": "Include legal disclaimer on all financial promotions",
+      "value": null,
+      "check": null
+    }
+  ]
+}

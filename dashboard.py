@@ -4,32 +4,28 @@ import tempfile
 import uuid
 
 import streamlit as st
-from dotenv import load_dotenv
 
-load_dotenv()
-
-from logging_config import setup_logging
+from brand_compliance.logging_config import setup_logging
 setup_logging()
 
-from config import QDRANT_URL
-from feedback_store import FeedbackEntry, FeedbackStore
-from graph import BrandState, build_graph
-from ml_trainer import MIN_SAMPLES, get_history, model_exists, samples_since_last_training, train
-from models import BrandRule, ComplianceReport, CorrectionSuggestion
-from report_generator import generate_json, generate_pdf
-from vector_store import RuleVectorStore
+from brand_compliance.feedback_store import FeedbackEntry, FeedbackStore
+from brand_compliance.agents.rule_extractor import extract_rules
+from brand_compliance.graph import BrandState, build_graph, make_llm
+from brand_compliance.ml_trainer import MIN_SAMPLES, get_history, model_exists, samples_since_last_training, train
+from brand_compliance.models import BrandRule, ComplianceReport, CorrectionSuggestion
+from brand_compliance.report_generator import generate_json, generate_pdf
+from brand_compliance.rule_editor import CHECK_TYPES, POSITIONS, rows_to_rules, rules_to_rows
 
 logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="Brand Compliance Checker", layout="centered")
 st.title("Brand Compliance Checker")
-st.caption("Upload your brand guidelines PDF and check if your ad copy is compliant.")
+st.caption("Upload your brand guidelines PDF, review the extracted rules and checks, then check your ad copy.")
 
 
 @st.cache_resource
 def get_graph():
-    store = RuleVectorStore(url=QDRANT_URL)
-    return build_graph(store), store
+    return build_graph()
 
 
 @st.cache_resource
@@ -37,8 +33,18 @@ def get_feedback_store():
     return FeedbackStore()
 
 
-graph, vector_store = get_graph()
+graph = get_graph()
 feedback_store = get_feedback_store()
+
+def holdout_text(entry: dict) -> str:
+    """Describe a training result as a small holdout check, not proven performance."""
+    if "test_samples" not in entry:
+        return f"holdout accuracy {entry['accuracy']:.0%} (holdout size not recorded)"
+    return (
+        f"holdout accuracy {entry['accuracy']:.0%} on {entry['test_samples']} test samples "
+        f"(always guessing the majority label: {entry['baseline_accuracy']:.0%})"
+    )
+
 
 # ── Sidebar: feedback stats + retrain ─────────────────────────────────────
 with st.sidebar:
@@ -56,31 +62,20 @@ with st.sidebar:
         last = history[-1]
         st.success(
             f"Custom model active  \n"
-            f"Accuracy: **{last['accuracy']:.0%}**  \n"
-            f"Trained on: **{last['samples']}** samples"
+            f"Trained on: **{last['samples']}** samples  \n"
+            f"Small holdout check, not proven performance: {holdout_text(last)}"
         )
         if new_count > 0:
             st.info(f"**{new_count}** new samples since last training. Retrain to improve.")
     else:
         st.info(f"No custom model yet. Need {MIN_SAMPLES} feedback samples.")
 
-    # PDF scope selector
-    pdf_list = feedback_store.list_pdfs()
-    scope_options = ["All PDFs"] + [f"{p} ({n})" for p, n in pdf_list]
-    selected_scope = st.selectbox("Train on:", scope_options)
-    selected_pdf = None if selected_scope == "All PDFs" else pdf_list[scope_options.index(selected_scope) - 1][0]
-
-    scoped_count = feedback_store.count() if selected_pdf is None else len(feedback_store.get_all(source_pdf=selected_pdf))
-    can_train = scoped_count >= MIN_SAMPLES
+    can_train = stats["total"] >= MIN_SAMPLES
 
     if st.button("Retrain Model", type="primary", disabled=not can_train):
-        with st.spinner(f"Training on {selected_scope}..."):
+        with st.spinner("Training on all feedback..."):
             try:
-                result = train(feedback_store, source_pdf=selected_pdf)
-                st.success(
-                    f"Done! Accuracy: **{result['accuracy']:.0%}**  \n"
-                    f"Scope: **{result['scope']}** ({result['samples']} samples)"
-                )
+                result = train(feedback_store)
                 logger.info(f"Model retrained | {result}")
                 st.rerun()
             except Exception as e:
@@ -88,8 +83,8 @@ with st.sidebar:
                 logger.error(f"Training failed | {e}", exc_info=True)
 
     if not can_train:
-        remaining = MIN_SAMPLES - scoped_count
-        st.caption(f"{remaining} more feedback needed for selected scope.")
+        remaining = MIN_SAMPLES - stats["total"]
+        st.caption(f"{remaining} more feedback needed.")
 
     # Training history
     if history:
@@ -97,17 +92,60 @@ with st.sidebar:
         st.markdown("**Training History**")
         for i, h in enumerate(reversed(history), 1):
             date = h["trained_at"][:10]
-            st.caption(f"#{len(history)-i+1}  {date}  —  {h['accuracy']:.0%} acc  ({h['samples']} samples)")
+            st.caption(f"#{len(history)-i+1}  {date}  —  {h['samples']} samples, {holdout_text(h)}")
 
 st.divider()
 
 # ── Main UI ────────────────────────────────────────────────────────────────
 pdf_file = st.file_uploader("Brand Guidelines PDF", type=["pdf"])
-ad_text  = st.text_area("Advertisement Text", height=150,
-                         placeholder="Enter the ad copy you want to check...")
+
+if st.button("Extract Rules", disabled=not pdf_file):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(pdf_file.read())
+        tmp_path = tmp.name
+    try:
+        with st.spinner("Extracting rules from the PDF..."):
+            extracted = extract_rules(tmp_path, make_llm())
+        st.session_state["rule_rows"] = rules_to_rows(extracted)
+        st.session_state["rules_pdf_name"] = pdf_file.name
+        st.session_state.pop("rule_editor", None)  # drop edits made to a previous extraction
+        logger.info(f"Rules extracted for review | pdf={pdf_file.name} | rules={len(extracted)}")
+    except Exception as e:
+        logger.error(f"Rule extraction failed | {e}", exc_info=True)
+        st.error(f"Rule extraction failed: {e}")
+    finally:
+        os.unlink(tmp_path)
+
+edited_rows = []
+if "rule_rows" in st.session_state:
+    st.subheader("Review rules and checks")
+    st.caption(
+        "Only rules with an exact check are evaluated. Set a check for a rule to have it enforced: "
+        "forbidden_words (comma separated list), required_text (exact text, anywhere or on the last line) "
+        "or no_all_caps. You can edit, delete or add rows."
+    )
+    edited = st.data_editor(
+        st.session_state["rule_rows"],
+        key="rule_editor",
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "category": st.column_config.TextColumn("Category"),
+            "rule": st.column_config.TextColumn("Rule", width="large"),
+            "value": st.column_config.TextColumn("Value"),
+            "check": st.column_config.SelectboxColumn("Exact check", options=CHECK_TYPES),
+            "words": st.column_config.TextColumn("Forbidden words"),
+            "text": st.column_config.TextColumn("Required text"),
+            "position": st.column_config.SelectboxColumn("Position", options=POSITIONS),
+        },
+    )
+    edited_rows = edited.to_dict("records") if hasattr(edited, "to_dict") else list(edited)
+
+ad_text = st.text_area("Advertisement Text", height=150,
+                       placeholder="Enter the ad copy you want to check...")
 
 run = st.button("Check Compliance", type="primary",
-                disabled=not (pdf_file and ad_text.strip()))
+                disabled=not (edited_rows and ad_text.strip()))
 
 if run:
     # Reset per-violation feedback state on new run
@@ -115,32 +153,32 @@ if run:
         if key.startswith("fb_"):
             del st.session_state[key]
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(pdf_file.read())
-        tmp_path = tmp.name
+    try:
+        reviewed_rules = rows_to_rules(edited_rows)
+    except ValueError as e:
+        st.error(f"Please fix the rules before checking: {e}")
+        st.stop()
 
     session_id = str(uuid.uuid4())
-    st.session_state["last_pdf_name"] = pdf_file.name
-    logger.info(f"New analysis | session={session_id} | pdf={pdf_file.name} | ad_len={len(ad_text)}")
+    st.session_state["last_pdf_name"] = st.session_state.get("rules_pdf_name", "unknown")
+    logger.info(f"New analysis | session={session_id} | rules={len(reviewed_rules)} | ad_len={len(ad_text)}")
 
     try:
         initial_state: BrandState = {
-            "pdf_path":          tmp_path,
+            "pdf_path":          "",
             "ad_text":           ad_text,
             "session_id":        session_id,
-            "brand_rules":       [],
-            "content_analysis":  {},
+            "brand_rules":       [r.model_dump() for r in reviewed_rules],
             "compliance_report": {},
-            "ml_scores":         {},
             "corrections":       [],
+            "corrections_error": "",
             "error":             "",
         }
 
         with st.status("Running agents...", expanded=True) as status:
-            st.write("**Agent 1** — Extracting brand rules from PDF...")
-            st.write("**Agent 2** — Analyzing advertisement content...")
-            st.write("**Agent 3** — ML pre-filter + compliance check...")
-            st.write("**Agent 4** — Generating correction suggestions...")
+            st.write("**Agent 1** — Using the reviewed rules...")
+            st.write("**Agent 2** — Checking compliance...")
+            st.write("**Agent 3** — Generating correction suggestions...")
 
         result = graph.invoke(initial_state)
 
@@ -154,12 +192,11 @@ if run:
         report      = ComplianceReport(**result["compliance_report"])
         corrections = [CorrectionSuggestion(**c) for c in result.get("corrections", [])]
         rules       = [BrandRule(**r) for r in result.get("brand_rules", [])]
-        ml_scores   = result.get("ml_scores", {})
 
         st.session_state["last_report"]      = report
         st.session_state["last_corrections"] = corrections
+        st.session_state["last_corrections_error"] = result.get("corrections_error", "")
         st.session_state["last_rules"]       = rules
-        st.session_state["last_ml_scores"]   = ml_scores
         st.session_state["last_ad_text"]     = ad_text
         st.session_state["last_session_id"]  = session_id
 
@@ -167,42 +204,39 @@ if run:
         logger.error(f"Error | session={session_id} | {e}", exc_info=True)
         st.error(f"Error: {e}")
         st.stop()
-    finally:
-        os.unlink(tmp_path)
 
 # ── Results (shown after run or from session state) ────────────────────────
 if "last_report" in st.session_state:
     report      = st.session_state["last_report"]
     corrections = st.session_state["last_corrections"]
+    corrections_error = st.session_state.get("last_corrections_error", "")
     rules       = st.session_state["last_rules"]
-    ml_scores   = st.session_state["last_ml_scores"]
     ad_text_res = st.session_state["last_ad_text"]
     session_id  = st.session_state["last_session_id"]
 
     st.divider()
 
+    checked = report.checks_evaluated
     col1, col2, col3 = st.columns(3)
-    col1.metric("Compliance Score", f"{report.score:.0f} / 100")
+    col1.metric("Exact checks passed", f"{checked - len(report.violations)} / {checked}")
     col2.metric("Violations",        len(report.violations))
     col3.metric("Corrections",       len(corrections))
 
-    if report.compliant:
-        st.success("This advertisement is compliant with the brand guidelines.")
+    if report.violations:
+        st.error(f"{len(report.violations)} of {checked} exact checks failed.")
     else:
-        st.error("This advertisement has brand guideline violations.")
+        st.success(f"All {checked} exact checks passed.")
+    unchecked = [r for r in rules if not r.check]
+    st.caption(
+        "This result covers only rules with an exact check. "
+        f"{len(unchecked)} of {len(rules)} rules have no exact check and were not evaluated."
+    )
+    if unchecked:
+        with st.expander(f"Rules not evaluated ({len(unchecked)})"):
+            for rule in unchecked:
+                st.markdown(f"**[{rule.category.upper()}]** {rule.rule}")
 
     st.divider()
-
-    # ML pre-filter scores
-    if ml_scores:
-        with st.expander("ML Pre-filter Scores (Zero-shot NLI)"):
-            st.caption(
-                "P(violation) per rule from BART-MNLI. "
-                "Rules above 0.50 were sent to LLM for analysis."
-            )
-            for rule_text, score in sorted(ml_scores.items(), key=lambda x: x[1], reverse=True):
-                icon = "🔴" if score >= 0.5 else "🟢"
-                st.markdown(f"`{score:.2f}` {icon}  {rule_text[:90]}")
 
     # Brand rules
     with st.expander(f"Brand Rules Found ({len(rules)})"):
@@ -258,6 +292,8 @@ if "last_report" in st.session_state:
         st.success("No violations found.")
 
     # Corrections
+    if corrections_error:
+        st.warning(f"{corrections_error}. The violations above are not affected.")
     if corrections:
         st.subheader(f"Suggested Corrections ({len(corrections)})")
         for i, c in enumerate(corrections, 1):

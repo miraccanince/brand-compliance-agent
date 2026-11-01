@@ -3,7 +3,7 @@ import logging
 import os
 import pickle
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import lru_cache
 
 import numpy as np
@@ -11,13 +11,14 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 
-from feedback_store import FeedbackStore
+from brand_compliance.feedback_store import FeedbackStore
 
 logger = logging.getLogger(__name__)
 
 MODEL_PATH   = "custom_classifier.pkl"
 HISTORY_PATH = "training_history.json"
 MIN_SAMPLES  = 10
+MIN_PER_CLASS = 2
 
 
 @lru_cache(maxsize=1)
@@ -31,32 +32,40 @@ def _embeddings(texts: list[str]) -> np.ndarray:
     return np.array([model.embed_query(t) for t in texts])
 
 
-def train(store: FeedbackStore, source_pdf: str | None = None) -> dict:
+def train(store: FeedbackStore) -> dict:
     """
-    Train a logistic regression on user feedback.
+    Train a logistic regression on all user feedback (one global model).
 
     Feature: concat(ad_text_embedding, rule_embedding)  →  768 + 768 = 1536 dims
     Label:   is_correct (1 = real violation, 0 = false positive)
-    """
-    rows = store.get_all(source_pdf=source_pdf)
-    scope = f"pdf={source_pdf}" if source_pdf else "all PDFs"
-    if len(rows) < MIN_SAMPLES:
-        raise ValueError(f"Need at least {MIN_SAMPLES} samples for {scope}, have {len(rows)}")
 
-    logger.info(f"Starting training | scope={scope} | samples={len(rows)}")
+    Raises ValueError before any embedding work if there are too few samples
+    or fewer than MIN_PER_CLASS examples of either label (the stratified
+    train/test split needs at least two of each).
+    """
+    rows = store.get_all()
+    if len(rows) < MIN_SAMPLES:
+        raise ValueError(f"Need at least {MIN_SAMPLES} samples, have {len(rows)}")
+
+    labels = np.array([r[3] for r in rows])
+    positives = int(labels.sum())
+    negatives = len(labels) - positives
+    if min(positives, negatives) < MIN_PER_CLASS:
+        raise ValueError(
+            f"Need at least {MIN_PER_CLASS} examples of each label, "
+            f"have {positives} correct and {negatives} wrong. Add more varied feedback."
+        )
+
+    logger.info(f"Starting training | samples={len(rows)}")
     t0 = time.time()
 
     ad_texts   = [r[0] for r in rows]
     rule_texts = [r[1] for r in rows]
-    labels     = np.array([r[3] for r in rows])
 
     logger.info("Computing embeddings for training data...")
     ad_embs   = _embeddings(ad_texts)
     rule_embs = _embeddings(rule_texts)
     X = np.concatenate([ad_embs, rule_embs], axis=1)
-
-    if len(set(labels)) < 2:
-        raise ValueError("Need both positive and negative examples to train. Add more varied feedback.")
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, labels, test_size=0.2, random_state=42, stratify=labels
@@ -66,17 +75,23 @@ def train(store: FeedbackStore, source_pdf: str | None = None) -> dict:
     clf.fit(X_train, y_train)
 
     accuracy = accuracy_score(y_test, clf.predict(X_test))
-    logger.info(f"Training complete | accuracy={accuracy:.2f} | elapsed={time.time()-t0:.1f}s")
+    # Accuracy of always predicting the most common test label, for comparison.
+    baseline = max(y_test.mean(), 1 - y_test.mean())
+    logger.info(
+        f"Training complete | accuracy={accuracy:.2f} on {len(y_test)} test samples "
+        f"(majority baseline={baseline:.2f}) | elapsed={time.time()-t0:.1f}s"
+    )
 
     with open(MODEL_PATH, "wb") as f:
         pickle.dump(clf, f)
     logger.info(f"Model saved | path={MODEL_PATH}")
 
     result = {
-        "accuracy":   round(accuracy, 3),
-        "samples":    len(rows),
-        "scope":      source_pdf or "all",
-        "trained_at": datetime.now().isoformat(timespec="seconds"),
+        "accuracy":          round(accuracy, 3),
+        "baseline_accuracy": round(float(baseline), 3),
+        "test_samples":      len(y_test),
+        "samples":           len(rows),
+        "trained_at":        datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
     _append_history(result)
     return result

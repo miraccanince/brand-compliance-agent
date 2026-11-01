@@ -3,19 +3,19 @@ import time
 
 from langchain_core.messages import HumanMessage
 
-from models import ComplianceReport, CorrectionSuggestion
-from utils import extract_list, parse_json_response
+from brand_compliance.models import ComplianceReport, CorrectionSuggestion
+from brand_compliance.utils import extract_list, parse_json_response
 
 logger = logging.getLogger(__name__)
 
 
 def suggest_corrections(ad_text: str, report: ComplianceReport, llm) -> list[CorrectionSuggestion]:
-    """Agent 4: İhlaller için düzeltme önerir."""
+    """Agent 3: İhlaller için düzeltme önerir."""
     if report.compliant or not report.violations:
-        logger.info("Agent 4 skipped | no violations to fix")
+        logger.info("Agent 3 skipped | no violations to fix")
         return []
 
-    logger.info(f"Agent 4 started | violations={len(report.violations)}")
+    logger.info(f"Agent 3 started | violations={len(report.violations)}")
     t0 = time.time()
 
     violations_text = "\n".join(
@@ -43,5 +43,5 @@ Return only valid JSON."""
     items = extract_list(data)
 
     corrections = [CorrectionSuggestion(**item) for item in items]
-    logger.info(f"Agent 4 complete | corrections={len(corrections)} | elapsed={time.time()-t0:.1f}s")
+    logger.info(f"Agent 3 complete | corrections={len(corrections)} | elapsed={time.time()-t0:.1f}s")
     return corrections

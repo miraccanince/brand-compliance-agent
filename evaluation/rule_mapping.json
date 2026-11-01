@@ -1,0 +1,28 @@
+{
+  "note": "Extracted rule text -> gold score ID, VISUAL (not checkable from text) or EXCLUDED (not scored this round). Matching is exact apart from case and whitespace. Third extraction.",
+  "mapping": {
+    "Logo must always appear on white or light background": "VISUAL",
+    "Maintain clear space of at least 20px around the logo": "VISUAL",
+    "Minimum logo size: 50px width": "VISUAL",
+    "Do not stretch, rotate, or recolor the logo": "VISUAL",
+    "Primary Blue: #0055FF (use for headlines, CTAs)": "VISUAL",
+    "Secondary Black: #000000 (body text)": "VISUAL",
+    "Background White: #FFFFFF": "VISUAL",
+    "Accent Gray: #F5F5F5": "VISUAL",
+    "Do NOT use red color in any marketing material": "EXCLUDED",
+    "Do NOT use gradients on logo": "VISUAL",
+    "Headline font: Helvetica Neue Bold": "VISUAL",
+    "Body font: Helvetica Neue Regular": "VISUAL",
+    "Minimum body font size: 14px": "VISUAL",
+    "Minimum headline size: 24px": "VISUAL",
+    "Always use formal, professional tone": "TONE",
+    "Forbidden words: cheap, free, guaranteed, limited time, urgent, buy now": "FORBIDDEN_WORDS",
+    "Do not use all-caps for body text": "ALL_CAPS",
+    "Always include the tagline: \"Innovation. Trust. Excellence.\"": "TAGLINE_REQUIRED",
+    "Required tagline on all ads: \"Innovation. Trust. Excellence.\"": "TAGLINE_REQUIRED",
+    "Tagline must appear at the bottom of every advertisement": "TAGLINE_POSITION",
+    "Do not modify or abbreviate the tagline": "TAGLINE_WORDING",
+    "Include trademark symbol (·) after ACME CORP in all materials": "EXCLUDED",
+    "Include legal disclaimer on all financial promotions": "FINANCIAL_DISCLAIMER"
+  }
+}

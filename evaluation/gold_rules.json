@@ -1,0 +1,166 @@
+{
+  "source": "samples/test_brand_guidelines.pdf",
+  "rules": [
+    {
+      "id": "LOGO-1",
+      "section": "LOGO USAGE",
+      "pdf_text": "Minimum logo size: 50px width",
+      "category": "visual",
+      "score_id": null
+    },
+    {
+      "id": "LOGO-2",
+      "section": "LOGO USAGE",
+      "pdf_text": "Logo must always appear on white or light background",
+      "category": "visual",
+      "score_id": null
+    },
+    {
+      "id": "LOGO-3",
+      "section": "LOGO USAGE",
+      "pdf_text": "Do not stretch, rotate, or recolor the logo",
+      "category": "visual",
+      "score_id": null
+    },
+    {
+      "id": "LOGO-4",
+      "section": "LOGO USAGE",
+      "pdf_text": "Maintain clear space of at least 20px around the logo",
+      "category": "visual",
+      "score_id": null
+    },
+    {
+      "id": "COLOR-1",
+      "section": "COLOR PALETTE",
+      "pdf_text": "Primary Blue: #0055FF (use for headlines, CTAs)",
+      "category": "visual",
+      "score_id": null
+    },
+    {
+      "id": "COLOR-2",
+      "section": "COLOR PALETTE",
+      "pdf_text": "Secondary Black: #000000 (body text)",
+      "category": "visual",
+      "score_id": null
+    },
+    {
+      "id": "COLOR-3",
+      "section": "COLOR PALETTE",
+      "pdf_text": "Background White: #FFFFFF",
+      "category": "visual",
+      "score_id": null
+    },
+    {
+      "id": "COLOR-4",
+      "section": "COLOR PALETTE",
+      "pdf_text": "Accent Gray: #F5F5F5",
+      "category": "visual",
+      "score_id": null
+    },
+    {
+      "id": "COLOR-5",
+      "section": "COLOR PALETTE",
+      "pdf_text": "Do NOT use red color in any marketing material",
+      "category": "text-conditional (excluded this round)",
+      "score_id": null
+    },
+    {
+      "id": "COLOR-6",
+      "section": "COLOR PALETTE",
+      "pdf_text": "Do NOT use gradients on logo",
+      "category": "visual",
+      "score_id": null
+    },
+    {
+      "id": "TYPO-1",
+      "section": "TYPOGRAPHY",
+      "pdf_text": "Headline font: Helvetica Neue Bold",
+      "category": "visual",
+      "score_id": null
+    },
+    {
+      "id": "TYPO-2",
+      "section": "TYPOGRAPHY",
+      "pdf_text": "Body font: Helvetica Neue Regular",
+      "category": "visual",
+      "score_id": null
+    },
+    {
+      "id": "TYPO-3",
+      "section": "TYPOGRAPHY",
+      "pdf_text": "Minimum body font size: 14px",
+      "category": "visual",
+      "score_id": null
+    },
+    {
+      "id": "TYPO-4",
+      "section": "TYPOGRAPHY",
+      "pdf_text": "Minimum headline size: 24px",
+      "category": "visual",
+      "score_id": null
+    },
+    {
+      "id": "LANG-1",
+      "section": "LANGUAGE & TONE",
+      "pdf_text": "Always use formal, professional tone",
+      "category": "text-scored",
+      "score_id": "TONE"
+    },
+    {
+      "id": "LANG-2",
+      "section": "LANGUAGE & TONE",
+      "pdf_text": "Forbidden words: cheap, free, guaranteed, limited time, urgent, buy now",
+      "category": "text-scored",
+      "score_id": "FORBIDDEN_WORDS"
+    },
+    {
+      "id": "LANG-3",
+      "section": "LANGUAGE & TONE",
+      "pdf_text": "Do not use all-caps for body text",
+      "category": "text-scored",
+      "score_id": "ALL_CAPS"
+    },
+    {
+      "id": "LANG-4",
+      "section": "LANGUAGE & TONE",
+      "pdf_text": "Always include the tagline: \"Innovation. Trust. Excellence.\"",
+      "category": "text-scored",
+      "score_id": "TAGLINE_REQUIRED"
+    },
+    {
+      "id": "SLOG-1",
+      "section": "SLOGAN",
+      "pdf_text": "Required tagline on all ads: \"Innovation. Trust. Excellence.\"",
+      "category": "text-scored",
+      "score_id": "TAGLINE_REQUIRED"
+    },
+    {
+      "id": "SLOG-2",
+      "section": "SLOGAN",
+      "pdf_text": "Tagline must appear at the bottom of every advertisement",
+      "category": "text-scored",
+      "score_id": "TAGLINE_POSITION"
+    },
+    {
+      "id": "SLOG-3",
+      "section": "SLOGAN",
+      "pdf_text": "Do not modify or abbreviate the tagline",
+      "category": "text-scored",
+      "score_id": "TAGLINE_WORDING"
+    },
+    {
+      "id": "LEGAL-1",
+      "section": "LEGAL",
+      "pdf_text": "Include trademark symbol (·) after ACME CORP in all materials",
+      "category": "ambiguous source (excluded this round)",
+      "score_id": null
+    },
+    {
+      "id": "LEGAL-2",
+      "section": "LEGAL",
+      "pdf_text": "Include legal disclaimer on all financial promotions",
+      "category": "text-scored",
+      "score_id": "FINANCIAL_DISCLAIMER"
+    }
+  ]
+}

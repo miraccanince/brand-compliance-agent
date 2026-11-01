@@ -48,3 +48,14 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+
+# Evaluation outputs
+evaluation/results/
+
+# AI assistant local configuration
+CLAUDE.md
+.claude/
+AGENTS.md
+GEMINI.md
+.cursor/
+.windsurfrules

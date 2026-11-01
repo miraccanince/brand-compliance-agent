@@ -2,7 +2,7 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
-from config import LOG_DIR
+from brand_compliance.config import LOG_DIR
 
 
 def setup_logging() -> None:

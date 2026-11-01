@@ -1,18 +1,13 @@
 import asyncio
+import os
 import tempfile
 import uuid
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-load_dotenv()
-
-from config import QDRANT_URL
-from graph import BrandState, build_graph
-from models import AnalysisResponse, ComplianceReport, CorrectionSuggestion
-from vector_store import RuleVectorStore
-import os
+from brand_compliance.graph import BrandState, build_graph
+from brand_compliance.models import AnalysisResponse, ComplianceReport, CorrectionSuggestion
 
 app = FastAPI(title="Brand Compliance System", version="1.0.0")
 app.add_middleware(
@@ -22,8 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_vector_store = RuleVectorStore(url=QDRANT_URL)
-_graph = build_graph(_vector_store)
+_graph = build_graph()
 
 
 @app.get("/health")
@@ -51,10 +45,9 @@ async def analyze(
             "ad_text":           ad_text,
             "session_id":        str(uuid.uuid4()),
             "brand_rules":       [],
-            "content_analysis":  {},
             "compliance_report": {},
-            "ml_scores":         {},
             "corrections":       [],
+            "corrections_error": "",
             "error":             "",
         }
 
@@ -69,8 +62,10 @@ async def analyze(
         return AnalysisResponse(
             compliant=report.compliant,
             score=report.score,
+            checks_evaluated=report.checks_evaluated,
             violations=report.violations,
             corrections=corrections,
+            corrections_error=result.get("corrections_error") or None,
         )
     finally:
         os.unlink(tmp_path)

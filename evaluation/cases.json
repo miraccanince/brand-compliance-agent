@@ -1,0 +1,134 @@
+{
+  "conventions": {
+    "FORBIDDEN_WORDS": "whole-word, case-insensitive match of a word or phrase in the PDF list",
+    "ALL_CAPS": "violated when a full line of two or more words is in capitals",
+    "TAGLINE_REQUIRED": "violated when no tagline-like text ('Innovation. Trust') appears",
+    "TAGLINE_POSITION": "violated when a tagline is present but is not the last line",
+    "TAGLINE_WORDING": "violated when tagline-like text is present but the exact tagline is not",
+    "TONE": "human label, scored only where listed expected or not in dont_care",
+    "FINANCIAL_DISCLAIMER": "human label, applies to ads promoting a financial product",
+    "dont_care": "pair excluded from scoring because reasonable reviewers could disagree or the rule does not apply"
+  },
+  "cases": [
+    {
+      "id": "E01",
+      "type": "compliant",
+      "text": "ACME CORP™ introduces its new analytics platform. Our team will contact you to arrange a product demonstration.\nInnovation. Trust. Excellence.",
+      "expected": [],
+      "dont_care": []
+    },
+    {
+      "id": "E02",
+      "type": "compliant",
+      "text": "ACME CORP™ announces its annual customer conference. Registration is open to all partners and clients through our website, and a printed programme is available at our information desk.\nInnovation. Trust. Excellence.",
+      "expected": [],
+      "dont_care": []
+    },
+    {
+      "id": "E03",
+      "type": "single violation",
+      "text": "ACME CORP™ is offering a free product demonstration to new partners. Contact our team to schedule a visit.\nInnovation. Trust. Excellence.",
+      "expected": [
+        "FORBIDDEN_WORDS"
+      ],
+      "dont_care": []
+    },
+    {
+      "id": "E04",
+      "type": "single violation",
+      "text": "ACME CORP™ PRESENTS ITS NEW ANALYTICS PLATFORM TO ENTERPRISE CUSTOMERS THIS QUARTER.\nInnovation. Trust. Excellence.",
+      "expected": [
+        "ALL_CAPS"
+      ],
+      "dont_care": [
+        "TONE"
+      ]
+    },
+    {
+      "id": "E05",
+      "type": "single violation",
+      "text": "Hey there! ACME CORP™ just dropped a super cool new analytics tool, check it out!!\nInnovation. Trust. Excellence.",
+      "expected": [
+        "TONE"
+      ],
+      "dont_care": []
+    },
+    {
+      "id": "E06",
+      "type": "multiple violations (existing samples/test.txt)",
+      "text": "Get it FREE now! URGENT — buy now before it's too late!\nThis cheap solution is guaranteed to work.\nACME CORP is the best. Limited time offer.\nCall today for a free consultation.",
+      "expected": [
+        "FORBIDDEN_WORDS",
+        "TAGLINE_REQUIRED"
+      ],
+      "dont_care": [
+        "TONE",
+        "TAGLINE_POSITION",
+        "TAGLINE_WORDING"
+      ]
+    },
+    {
+      "id": "E07",
+      "type": "multiple violations",
+      "text": "URGENT NOTICE: BUY NOW AND SAVE ON ALL ACME CORP™ SERVICES THIS MONTH.",
+      "expected": [
+        "FORBIDDEN_WORDS",
+        "ALL_CAPS",
+        "TAGLINE_REQUIRED"
+      ],
+      "dont_care": [
+        "TONE",
+        "TAGLINE_POSITION",
+        "TAGLINE_WORDING"
+      ]
+    },
+    {
+      "id": "E08",
+      "type": "omission (tagline missing)",
+      "text": "ACME CORP™ is pleased to announce the opening of its new regional office. Customers are welcome to visit during business hours.",
+      "expected": [
+        "TAGLINE_REQUIRED"
+      ],
+      "dont_care": [
+        "TAGLINE_POSITION",
+        "TAGLINE_WORDING"
+      ]
+    },
+    {
+      "id": "E09",
+      "type": "omission (tagline at top, not bottom)",
+      "text": "Innovation. Trust. Excellence.\nACME CORP™ announces extended support hours for enterprise customers.",
+      "expected": [
+        "TAGLINE_POSITION"
+      ],
+      "dont_care": []
+    },
+    {
+      "id": "E10",
+      "type": "omission (tagline abbreviated)",
+      "text": "ACME CORP™ announces extended support hours for enterprise customers.\nInnovation. Trust.",
+      "expected": [
+        "TAGLINE_WORDING"
+      ],
+      "dont_care": [
+        "TAGLINE_REQUIRED"
+      ]
+    },
+    {
+      "id": "E11",
+      "type": "omission (financial disclaimer missing)",
+      "text": "ACME CORP™ offers a new business loan with a fixed rate for the first twelve months. Apply through our website.\nInnovation. Trust. Excellence.",
+      "expected": [
+        "FINANCIAL_DISCLAIMER"
+      ],
+      "dont_care": []
+    },
+    {
+      "id": "E12",
+      "type": "near-miss",
+      "text": "ACME CORP™ gives teams the freedom to work with unlimited storage. Read our buying guide for details.\nInnovation. Trust. Excellence.",
+      "expected": [],
+      "dont_care": []
+    }
+  ]
+}

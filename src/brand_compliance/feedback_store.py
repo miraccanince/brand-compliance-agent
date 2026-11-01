@@ -1,7 +1,6 @@
 import logging
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -55,22 +54,10 @@ class FeedbackStore:
         label = "CORRECT" if entry.is_correct else "WRONG"
         logger.info(f"Feedback saved | {label} | rule='{entry.rule_text[:50]}'")
 
-    def get_all(self, source_pdf: str | None = None) -> list[tuple]:
+    def get_all(self) -> list[tuple]:
         with sqlite3.connect(self.db_path) as conn:
-            if source_pdf:
-                return conn.execute(
-                    "SELECT ad_text, rule_text, rule_category, is_correct FROM feedback WHERE source_pdf=?",
-                    (source_pdf,),
-                ).fetchall()
             return conn.execute(
                 "SELECT ad_text, rule_text, rule_category, is_correct FROM feedback"
-            ).fetchall()
-
-    def list_pdfs(self) -> list[tuple[str, int]]:
-        """Returns [(pdf_name, count), ...] sorted by count desc."""
-        with sqlite3.connect(self.db_path) as conn:
-            return conn.execute(
-                "SELECT source_pdf, COUNT(*) as cnt FROM feedback GROUP BY source_pdf ORDER BY cnt DESC"
             ).fetchall()
 
     def count(self) -> int:
@@ -78,9 +65,14 @@ class FeedbackStore:
             return conn.execute("SELECT COUNT(*) FROM feedback").fetchone()[0]
 
     def count_since(self, iso_timestamp: str) -> int:
+        """Count rows created after an ISO 8601 timestamp (UTC if it has no offset)."""
+        # created_at is stored by SQLite as UTC text ("YYYY-MM-DD HH:MM:SS").
+        # datetime() normalizes both sides, so the "T" separator and a UTC
+        # offset in the argument compare correctly.
         with sqlite3.connect(self.db_path) as conn:
             return conn.execute(
-                "SELECT COUNT(*) FROM feedback WHERE created_at > ?", (iso_timestamp,)
+                "SELECT COUNT(*) FROM feedback WHERE datetime(created_at) > datetime(?)",
+                (iso_timestamp,),
             ).fetchone()[0]
 
     def stats(self) -> dict:

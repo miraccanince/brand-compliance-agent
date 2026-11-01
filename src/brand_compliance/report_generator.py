@@ -4,7 +4,7 @@ from datetime import datetime
 
 import fitz
 
-from models import BrandRule, ComplianceReport, CorrectionSuggestion
+from brand_compliance.models import BrandRule, ComplianceReport, CorrectionSuggestion
 
 # Page (A4)
 PW, PH = 595, 842
@@ -188,10 +188,10 @@ def generate_pdf(
     )
 
     score_color = C_GREEN if report.score >= 80 else C_ORANGE if report.score >= 50 else C_RED
-    status      = "COMPLIANT" if report.compliant else "NOT COMPLIANT"
+    passed      = report.checks_evaluated - len(report.violations)
     pdf.metrics([
-        ("COMPLIANCE SCORE", f"{report.score:.0f} / 100", score_color),
-        ("STATUS",           status,                       score_color),
+        ("EXACT-CHECK SCORE", f"{report.score:.0f} / 100", score_color),
+        ("EXACT CHECKS PASSED", f"{passed} / {report.checks_evaluated}", score_color),
         ("VIOLATIONS",       str(len(report.violations)),  C_RED   if report.violations else C_GREEN),
         ("CORRECTIONS",      str(len(corrections)),        C_ORANGE if corrections      else C_GREEN),
     ])
@@ -236,7 +236,8 @@ def generate_json(
         "generated_at": datetime.now().isoformat(),
         "ad_text": ad_text,
         "summary": {
-            "compliant": report.compliant,
+            "exact_checks_evaluated": report.checks_evaluated,
+            "exact_checks_failed": len(report.violations),
             "score": report.score,
             "violation_count": len(report.violations),
             "correction_count": len(corrections),
